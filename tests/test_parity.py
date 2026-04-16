@@ -17,15 +17,23 @@ ROOT = Path(__file__).resolve().parent.parent
 
 EXTRACTED_FUNCTIONS = {
     "square_to_circle_correspondences", "circle_to_circle_correspondences",
-    "show", "find_index",
+    "show", "find_index", "jacobian_plot",
     "jacobian_determinant_central", "jacobian_determinant_finite", "compute_jacobian_det",
     "upscale_dvf_preserve", "upscale_dvf_linear_y",
     "assign_unique_correspondences", "generate_additional_correspondences_from_upscaled_dvf",
     "get_point_info", "get_expanding_coordinates", "get_contracting_coordinates",
     "get_mapped_point", "get_displacement",
+    "interpolate_coordinates", "upscale_grid_values", "upscale_grid_with_priors",
+    "boundary_points_on_grid", "export_interpolated_grid_to_csv",
+    "plot_point_correspondences",
+    "print_coord_list", "print_interpolated_coords_grid", "print_fixed_at_moving",
+    "load_png", "show_png", "show_2_pngs",
+    "create_blobby_circular_shapes", "create_ellipse_correspondences",
+    "create_crossing_lines_correspondences", "create_double_helix_waves",
 }
 
 NOTEBOOKS = [
+    "clustering.ipynb",
     "clustering v2 fixed Laplacian.ipynb",
     "clustering v2 moving Laplacian.ipynb",
     "clustering v3 fixed Laplacian for paper images.ipynb",

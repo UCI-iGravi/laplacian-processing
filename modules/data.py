@@ -28,6 +28,9 @@ def points_in_grid(points, center, grid_size=7):
     return np.array(filtered_indexes)
 
 class Data:
+    def _solve(self, grid_resolution, mpoints, fpoints):
+        return laplacian.sliceToSlice3DLaplacian(grid_resolution, mpoints, fpoints)
+
     def __init__(self, mpoints: np.ndarray, fpoints: np.ndarray, resolution: np.ndarray):
         """Initialize the Data object with matched points and resolution.
         
@@ -60,7 +63,7 @@ class Data:
         """
         # Run Laplacian and Jacobian determinant calculations and save the Jacobian determinant field
         grid_resolution = np.zeros((1, self.resolution[0], self.resolution[1]))
-        deformation, A, Xd, Yd, Zd = laplacian.sliceToSlice3DLaplacian(grid_resolution, self.mpoints, self.fpoints)
+        deformation, A, Xd, Yd, Zd = self._solve(grid_resolution, self.mpoints, self.fpoints)
         jdet_field = jacobian.sitk_jacobian_determinant(deformation)[0]
         self.A = A
         self.Xd = Xd
@@ -120,9 +123,9 @@ class Data:
         fpoints = np.vstack((fpoint1, fpoint2))
         
         if grid_size is None:
-            d = Data(mpoints, fpoints, self.resolution)
+            d = type(self)(mpoints, fpoints, self.resolution)
         else:
-            d = Data(mpoints, fpoints, (grid_size, grid_size))
+            d = type(self)(mpoints, fpoints, (grid_size, grid_size))
             
         if show:
             if title is None:
@@ -217,7 +220,7 @@ class Data:
         """
         mpoints = np.delete(self.mpoints, idx, axis=0)
         fpoints = np.delete(self.fpoints, idx, axis=0)
-        d = Data(mpoints, fpoints, self.resolution)
+        d = type(self)(mpoints, fpoints, self.resolution)
         if show:
             if title is None:
                 title = f"Removing {idx}, min = {d.min():.2f}"

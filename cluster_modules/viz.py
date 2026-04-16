@@ -34,6 +34,71 @@ def show(d, px, figsize: tuple = (10, 5), fontsize: int = 6, show_text=True, sho
     plt.close(f)
 
 
+def jacobian_plot(d, pt=None, figsize=(10, 5), title=None,
+                  xlim=None, ylim=None,
+                  binarize_negatives=False,
+                  moving_pts=None, fixed_pts=None,
+                  paper=False):
+    """Plot the Jacobian determinant field.
+
+    Set ``paper=True`` for the clean paper-figure styling
+    (dynamic color norm, no colorbar, no ticks, larger fonts).
+    """
+    jdet_field = d.jdet_field.copy()
+
+    if binarize_negatives:
+        jdet_field[jdet_field < 0] = -1
+
+    plt.figure(figsize=figsize)
+    if paper:
+        norm = mcolors.TwoSlopeNorm(vmin=jdet_field.min(), vcenter=0, vmax=1)
+        plt.imshow(jdet_field, cmap='seismic', norm=norm)
+    else:
+        plt.imshow(jdet_field, cmap='seismic', vmin=-1, vmax=1)
+        plt.colorbar()
+
+    text_fs = 20 if paper else 7
+    if xlim is not None and ylim is not None:
+        for y in range(ylim[0] + 1, ylim[1]):
+            for x in range(xlim[0] + 1, xlim[1]):
+                if jdet_field[y, x] < 0:
+                    plt.text(x, y, f"{d.jdet_field[y, x]:.2f}", fontsize=text_fs, ha='center', va='center', color='red', fontweight='bold')
+                else:
+                    plt.text(x, y, f"{d.jdet_field[y, x]:.2f}", fontsize=text_fs, ha='center', va='center', color='black')
+
+    if pt is not None:
+        plt.scatter(pt[1], pt[0], c='green', s=20)
+        plt.scatter(pt[1] + d.deformation[2, 0, pt[0], pt[1]],
+                    pt[0] + d.deformation[1, 0, pt[0], pt[1]],
+                    c='violet', s=20)
+        plt.title(f"Moving image, marked px {pt}")
+    else:
+        plt.title("Jacobian Determinant Field")
+    if title:
+        plt.title(title, fontsize=30) if paper else plt.title(title)
+    if xlim:
+        plt.xlim(xlim)
+        if not paper:
+            plt.xticks(ticks=np.arange(xlim[0], xlim[1], 1), labels=np.arange(xlim[0], xlim[1], 1))
+    if ylim:
+        plt.ylim(ylim)
+        if not paper:
+            plt.yticks(ticks=np.arange(ylim[0], ylim[1], 1), labels=np.arange(ylim[0], ylim[1], 1))
+
+    if moving_pts is not None:
+        plt.scatter(moving_pts[:, 2], moving_pts[:, 1], c='green', s=10, label='Moving Points')
+    if fixed_pts is not None:
+        plt.scatter(fixed_pts[:, 2], fixed_pts[:, 1], c='violet', s=10, label='Fixed Points')
+
+    if paper:
+        plt.xticks([])
+        plt.yticks([])
+    else:
+        plt.grid(True, which='both', linestyle='--', linewidth=0.25)
+    plt.gca().invert_yaxis()
+    plt.show()
+
+
 def find_index(arr, values):
     """
     arr: np.ndarray of shape (N, 3)

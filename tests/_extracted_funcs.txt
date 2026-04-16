@@ -1,0 +1,501 @@
+### square_to_circle_correspondences ###
+def square_to_circle_correspondences(n_points=100, square_size=1.0, circle_radius=1.0, resolution=(256, 256), padding=20):
+    """
+    Generates n_points correspondences from a square to a circle,
+    mapped to a given image resolution with padding from the edges.
+    Returns:
+        square_points: (n_points, 2) array of (x, y) in image coordinates
+        circle_points: (n_points, 2) array of (x, y) in image coordinates
+    """
+    # Square points: uniformly sample points along the square perimeter in CCW order starting from bottom left
+    per_side = n_points // 4
+    remainder = n_points % 4
+    sides = [per_side] * 4
+    for i in range(remainder):
+        sides[i] += 1
+
+    # Bottom (left to right)
+    x0 = np.linspace(-square_size, square_size, sides[0], endpoint=False)
+    y0 = np.full_like(x0, -square_size)
+    # Right (bottom to top)
+    y1 = np.linspace(-square_size, square_size, sides[1], endpoint=False)
+    x1 = np.full_like(y1, square_size)
+    # Top (right to left)
+    x2 = np.linspace(square_size, -square_size, sides[2], endpoint=False)
+    y2 = np.full_like(x2, square_size)
+    # Left (top to bottom)
+    y3 = np.linspace(square_size, -square_size, sides[3], endpoint=False)
+    x3 = np.full_like(y3, -square_size)
+
+    square_points = np.concatenate([
+        np.stack([x0, y0], axis=1),
+        np.stack([x1, y1], axis=1),
+        np.stack([x2, y2], axis=1),
+        np.stack([x3, y3], axis=1)
+    ], axis=0)
+
+    # Map each square point to a circle point by angle, starting at -pi/2 (bottom)
+    angles = np.linspace(-np.pi/2, 3*np.pi/2, n_points, endpoint=False)
+    circle_points = np.stack([
+        circle_radius * np.cos(angles),
+        circle_radius * np.sin(angles)
+    ], axis=1)
+
+    # Center both shapes in the image
+    img_center = np.array(resolution) / 2
+
+    def to_image_coords(points, obj_size):
+        # Scale so that the largest shape fits within the padded area
+        scale = (np.array(resolution) - 2 * padding) / (2 * max(square_size, circle_radius))
+        img_points = points * scale + img_center
+        return img_points
+
+    square_img_points = to_image_coords(square_points, square_size)
+    circle_img_points = to_image_coords(circle_points, circle_radius)
+
+    return square_img_points, circle_img_points
+
+### circle_to_circle_correspondences ###
+def circle_to_circle_correspondences(n_points=100, inner_radius=0.5, outer_radius=1.0, resolution=(256, 256), padding=20):
+    """
+    Generates n_points correspondences from an inner circle to an outer circle,
+    mapped to a given image resolution with padding from the edges.
+    Returns:
+        inner_points: (n_points, 2) array of (x, y) in image coordinates
+        outer_points: (n_points, 2) array of (x, y) in image coordinates
+    """
+    # Sample points along the perimeter, CCW starting from bottom
+    angles = np.linspace(-np.pi/2, 3*np.pi/2, n_points, endpoint=False)
+    inner_points = np.stack([
+        inner_radius * np.cos(angles),
+        inner_radius * np.sin(angles)
+    ], axis=1)
+    outer_points = np.stack([
+        outer_radius * np.cos(angles),
+        outer_radius * np.sin(angles)
+    ], axis=1)
+
+    # Center both shapes in the image
+    img_center = np.array(resolution) / 2
+
+    def to_image_coords(points, obj_size):
+        # Scale so that the largest shape fits within the padded area
+        scale = (np.array(resolution) - 2 * padding) / (2 * outer_radius)
+        img_points = points * scale + img_center
+        return img_points
+
+    inner_img_points = to_image_coords(inner_points, inner_radius)
+    outer_img_points = to_image_coords(outer_points, outer_radius)
+
+    return inner_img_points, outer_img_points
+
+### show ###
+def show(d, px, figsize: tuple = (10, 5), fontsize: int = 6, show_text=True, show_axis=True, show_correspondence=True, show_orientation=False, binarize_negatives=False):
+    """Show the deformation field and the Jacobian determinant field.
+    
+    Args:
+        title (str, optional): Title of the plot. Defaults to None.
+        figsize (tuple, optional): Size of the plot. Defaults to (10, 5).
+        fontsize (int, optional): Font size of the text. Defaults to 6.
+        show_text (bool, optional): Whether to show text on the plot. Defaults to True.
+        show_axis (bool, optional): Whether to show the normalized axis text or use the default. Defaults to True.
+    """
+    #norm = mcolors.TwoSlopeNorm(vmin=min(self.jdet_field.min(), -1), vcenter=0, vmax=self.jdet_field.max())
+    norm = mcolors.TwoSlopeNorm(vmin=-1, vcenter=0, vmax=1)
+    
+    jdet_field = d.jdet_field.copy()
+    
+    #if binarize_negatives:
+    #    jdet_field[jdet_field < 0] = -1
+    #    jdet_field[jdet_field > 0] = 1  # Clip values to [-1, 1] for better visualization
+
+    f = plt.figure(figsize=figsize)
+    plt.imshow(jdet_field, cmap="seismic", norm=norm)
+    plt.colorbar()
+    
+    plt.scatter(px[1], px[0], c='green', s=5)
+    plt.scatter(px[1] + d.deformation[2, 0, px[0], px[1]], px[0] + d.deformation[1, 0, px[0], px[1]], c='violet', s=5)
+    plt.title(f"Moving image, marked px {px}")
+    plt.show()
+    f.clear()
+    plt.close(f)
+
+### find_index ###
+def find_index(arr, values):
+    """
+    arr: np.ndarray of shape (N, 3)
+    values: tuple or list of 3 values to match
+    Returns: index or -1 if not found
+    """
+    matches = np.where(np.all(arr == values, axis=1))[0]
+    return matches[0] if len(matches) > 0 else -1
+
+### get_point_info ###
+def get_point_info(dvf, pt, scale=1):
+    """
+    Get the current point's deformation and Jdet information.
+    Args:
+        d_original: Data object containing the deformation field and Jdet field.
+        pt: Tuple (y, x) coordinates of the point in the image.
+    Returns:
+        current_jdet: Jacobian determinant at the current point.
+        current: Deformation vector at the current point.
+        down: Deformation vector at the point below.
+        up: Deformation vector at the point above.
+        left: Deformation vector at the point to the left.
+        right: Deformation vector at the point to the right.
+    """
+    pt = np.array(pt)
+    current_jdet = jacobian.sitk_jacobian_determinant(dvf)[0][pt[0], pt[1]]
+    current = dvf[:, 0, pt[0], pt[1]]
+    down = dvf[:, 0, pt[0]-1, pt[1]]
+    up = dvf[:, 0, pt[0]+1, pt[1]]
+    left = dvf[:, 0, pt[0], pt[1]-1]
+    right = dvf[:, 0, pt[0], pt[1]+1]
+
+    print("Mapping in fixed space:")
+    print(f"Current point: {np.array(pt) / scale}")
+    print("Mapped point:", np.array((pt[0] / scale + current[1], pt[1] / scale + current[2])))
+    print("Jdet:", current_jdet)
+
+    print("Current displacement:", current)
+    #print("\tDown:", down)
+    #print("\tUp:", up)
+    #print("\tLeft:", left)
+    #print("\tRight:", right)
+    print()
+
+### upscale_dvf_preserve ###
+def upscale_dvf_preserve(dvf, scale=3):
+    """
+    Upscales a DVF (3, 1, H, W) by a factor with linear interpolation.
+    Ensures original values at original locations are preserved.
+
+    Parameters:
+        dvf (np.ndarray): Deformation vector field of shape (3, 1, H, W)
+        scale (int): Upscaling factor (e.g., 3)
+
+    Returns:
+        np.ndarray: Upscaled DVF of shape (3, 1, scale*H, scale*W)
+    """
+    z, c, H, W = dvf.shape
+    # Linearly interpolate entire DVF
+    dvf_up = zoom(dvf, zoom=(1, 1, scale, scale), order=1)
+
+    # Replace exact original points at the scaled locations (0, scale, 2*scale, ...)
+    for y in range(H):
+        for x in range(W):
+            y_up = y * scale
+            x_up = x * scale
+            dvf_up[:, 0, y_up, x_up] = dvf[:, 0, y, x]
+
+    return dvf_up
+
+### upscale_dvf_linear_y ###
+def upscale_dvf_linear_y(dvf, scale=3):
+    """
+    Upscale a DVF (3, 1, H, W) by a factor, using strict linear interpolation in y-direction.
+    Only works if displacements are only in y (i.e., dvf[2, ...] == 0).
+    """
+    z, c, H, W = dvf.shape
+    up_H, up_W = H * scale, W * scale
+    dvf_up = np.zeros((z, c, up_H, up_W), dtype=dvf.dtype)
+
+    for x in range(W):
+        for y in range(H - 1):
+            # Original displacements at y and y+1
+            v0 = dvf[:, 0, y, x]
+            v1 = dvf[:, 0, y + 1, x]
+            for s in range(scale):
+                alpha = s / scale
+                interp = (1 - alpha) * v0 + alpha * v1
+                dvf_up[:, 0, y * scale + s, x * scale] = interp
+        # Last point: just copy
+        dvf_up[:, 0, (H - 1) * scale, x * scale] = dvf[:, 0, H - 1, x]
+
+    # Optionally, fill in x-direction by copying (if you want a column to be constant)
+    for x in range(W):
+        for y in range(up_H):
+            for s in range(1, scale):
+                dvf_up[:, 0, y, x * scale + s] = dvf_up[:, 0, y, x * scale]
+
+    return dvf_up
+
+### get_expanding_coordinates ###
+def get_expanding_coordinates(jdet_field, threshold=1, verbose=True):
+    """
+    Get the coordinates of expanding Jacobian determinants in the grid.
+    
+    Args:
+        show (bool): Whether to print the coordinates of the expanding Jacobian determinants.
+        
+    Returns:
+        np.ndarray: Array of coordinates of expanding Jacobian determinants.
+    """
+    # Get coordinate of expanding Jacobian determinants
+    found_indices = np.argwhere(jdet_field > threshold)
+    if verbose:
+        print("Expanding Jacobian determinants:")
+        for y, x in found_indices:
+            print(f"({y}, {x})")
+    print(f"Found {len(found_indices)} expanding Jacobian determinants with threshold {threshold}.")
+    return found_indices
+
+### get_contracting_coordinates ###
+def get_contracting_coordinates(jdet_field, threshold=1, verbose=True):
+    """
+    Get the coordinates of contracting Jacobian determinants in the grid.
+    
+    Args:
+        show (bool): Whether to print the coordinates of the contracting Jacobian determinants.
+        
+    Returns:
+        np.ndarray: Array of coordinates of expanding contracting determinants.
+    """
+    # Get coordinate of expanding Jacobian determinants
+    found_indices = np.argwhere(jdet_field < threshold)
+    if verbose:
+        print("Contracting Jacobian determinants:")
+        for y, x in found_indices:
+            print(f"({y}, {x})")
+    print(f"Found {len(found_indices)} contracting Jacobian determinants with threshold {threshold}.")
+    return found_indices
+
+### get_mapped_point ###
+def get_mapped_point(pt, dvf):
+    """
+    Get the mapped point in the fixed space given a point in the moving space and a deformation vector field.
+    
+    Args:
+        pt (tuple): Coordinates of the point in the moving space (y, x).
+        dvf (np.ndarray): Deformation vector field of shape (3, 1, H, W).
+        
+    Returns:
+        tuple: Mapped coordinates in the fixed space.
+    """
+    if len(pt) == 2:
+        y, x = pt
+    elif len(pt) == 3:
+        y, x = pt[1], pt[2]
+        
+    mapped_y = y + dvf[1, 0, y, x]
+    mapped_x = x + dvf[2, 0, y, x]
+    return np.array((mapped_y, mapped_x))
+
+### get_displacement ###
+def get_displacement(pt, dvf):
+    """
+    Get the displacement vector at a point in the moving space.
+    
+    Args:
+        pt (tuple): Coordinates of the point in the moving space (y, x).
+        dvf (np.ndarray): Deformation vector field of shape (3, 1, H, W).
+        
+    Returns:
+        np.ndarray: Displacement vector at the point.
+    """
+    if len(pt) == 2:
+        y, x = pt
+    elif len(pt) == 3:
+        y, x = pt[1], pt[2]
+        
+    return dvf[:, 0, y, x]
+
+### jacobian_determinant_central ###
+def jacobian_determinant_central(dvf, pt=None):
+    """
+    Compute the Jacobian determinant of a 2D deformation vector field using central differences.
+    dvf: numpy array of shape (3, 1, H, W), where dvf[1, 0, ...] is dy, dvf[2, 0, ...] is dx
+    Returns: jdet (H, W) array
+    """
+    # Extract displacement fields
+    dy = dvf[1, 0]  # shape (H, W)
+    dx = dvf[2, 0]  # shape (H, W)
+
+    # Compute gradients using central differences
+    # For interior points: (f[i+1] - f[i-1]) / 2
+    # For borders: use forward/backward difference
+
+    # ∂dx/∂x
+    dx_x = np.zeros_like(dx)
+    dx_x[:, 1:-1] = (dx[:, 2:] - dx[:, :-2]) / 2
+    dx_x[:, 0] = dx[:, 1] - dx[:, 0]
+    dx_x[:, -1] = dx[:, -1] - dx[:, -2]
+
+    # ∂dx/∂y
+    dx_y = np.zeros_like(dx)
+    dx_y[1:-1, :] = (dx[2:, :] - dx[:-2, :]) / 2
+    dx_y[0, :] = dx[1, :] - dx[0, :]
+    dx_y[-1, :] = dx[-1, :] - dx[-2, :]
+
+    # ∂dy/∂x
+    dy_x = np.zeros_like(dy)
+    dy_x[:, 1:-1] = (dy[:, 2:] - dy[:, :-2]) / 2
+    dy_x[:, 0] = dy[:, 1] - dy[:, 0]
+    dy_x[:, -1] = dy[:, -1] - dy[:, -2]
+
+    # ∂dy/∂y
+    dy_y = np.zeros_like(dy)
+    dy_y[1:-1, :] = (dy[2:, :] - dy[:-2, :]) / 2
+    dy_y[0, :] = dy[1, :] - dy[0, :]
+    dy_y[-1, :] = dy[-1, :] - dy[-2, :]
+
+    # Show each step
+    if pt is not None:
+        print("dx_x (∂dx/∂x):\n", dx_x[pt[0], pt[1]])
+        print("dx_y (∂dx/∂y):\n", dx_y[pt[0], pt[1]])
+        print("dy_x (∂dy/∂x):\n", dy_x[pt[0], pt[1]])
+        print("dy_y (∂dy/∂y):\n", dy_y[pt[0], pt[1]])
+
+    # Jacobian determinant formula for 2D deformation:
+    # J = | 1 + dy_y   dy_x |
+    #     | dx_y     1 + dx_x |
+    # det(J) = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+    jdet = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+
+    print("Jacobian determinant:\n", jdet[pt[0], pt[1]])
+    return jdet
+
+### jacobian_determinant_finite ###
+def jacobian_determinant_finite(dvf, pt=None):
+    """
+    Compute the Jacobian determinant of a 2D deformation vector field using forward finite differences.
+    dvf: numpy array of shape (3, 1, H, W), where dvf[1, 0, ...] is dy, dvf[2, 0, ...] is dx
+    Returns: jdet (H, W) array
+    """
+    dy = dvf[1, 0]  # (H, W)
+    dx = dvf[2, 0]  # (H, W)
+    H, W = dx.shape
+
+    # ∂dx/∂x (forward difference)
+    dx_x = np.zeros_like(dx)
+    dx_x[:, :-1] = dx[:, 1:] - dx[:, :-1]
+    dx_x[:, -1] = dx[:, -1] - dx[:, -2]
+
+    # ∂dx/∂y (forward difference)
+    dx_y = np.zeros_like(dx)
+    dx_y[:-1, :] = dx[1:, :] - dx[:-1, :]
+    dx_y[-1, :] = dx[-1, :] - dx[-2, :]
+
+    # ∂dy/∂x (forward difference)
+    dy_x = np.zeros_like(dy)
+    dy_x[:, :-1] = dy[:, 1:] - dy[:, :-1]
+    dy_x[:, -1] = dy[:, -1] - dy[:, -2]
+
+    # ∂dy/∂y (forward difference)
+    dy_y = np.zeros_like(dy)
+    dy_y[:-1, :] = dy[1:, :] - dy[:-1, :]
+    dy_y[-1, :] = dy[-1, :] - dy[-2, :]
+
+    # Show each step
+    if pt is not None:
+        print("dx_x (∂dx/∂x):\n", dx_x[pt[0], pt[1]])
+        print("dx_y (∂dx/∂y):\n", dx_y[pt[0], pt[1]])
+        print("dy_x (∂dy/∂x):\n", dy_x[pt[0], pt[1]])
+        print("dy_y (∂dy/∂y):\n", dy_y[pt[0], pt[1]])
+
+    # Jacobian determinant formula for 2D deformation:
+    # J = | 1 + dy_y   dy_x |
+    #     | dx_y     1 + dx_x |
+    # det(J) = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+    jdet = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+
+    if pt is not None:
+        print("Jacobian determinant:\n", jdet[pt[0], pt[1]])
+    return jdet
+
+### assign_unique_correspondences ###
+def assign_unique_correspondences(fixed_coords, displacements, moving_coords):
+    """
+    Assign each fixed pixel to a unique moving pixel based on closest displaced location.
+    Args:
+        fixed_coords: (N, 2) array of (y, x) for fixed pixels
+        displacements: (N, 2) array of (dy, dx) for each fixed pixel
+        moving_coords: (M, 2) array of (y, x) for moving pixels (candidates)
+    Returns:
+        assignment: (N,) array, assignment[i] = index in moving_coords assigned to fixed_coords[i]
+    """
+    # Compute displaced locations for each fixed pixel
+    displaced = fixed_coords + displacements
+
+    # Compute cost matrix: distance from each displaced fixed pixel to each moving pixel
+    cost_matrix = np.linalg.norm(displaced[:, None, :] - moving_coords[None, :, :], axis=2)
+
+    # Solve the assignment problem (minimize total distance, unique assignments)
+    row_ind, col_ind = linear_sum_assignment(cost_matrix)
+    # row_ind: indices in fixed_coords, col_ind: assigned indices in moving_coords
+
+    # For each fixed pixel, get the assigned moving pixel index
+    assignment = np.full(len(fixed_coords), -1, dtype=int)
+    assignment[row_ind] = col_ind
+    return assignment
+
+### compute_jacobian_det ###
+def compute_jacobian_det(dvf):
+    dy = dvf[1, 0]
+    dx = dvf[2, 0]
+    dx_x = np.gradient(dx, axis=1)
+    dx_y = np.gradient(dx, axis=0)
+    dy_x = np.gradient(dy, axis=1)
+    dy_y = np.gradient(dy, axis=0)
+    return (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+
+### generate_additional_correspondences_from_upscaled_dvf ###
+def generate_additional_correspondences_from_upscaled_dvf(
+    dvf_up, jacobian_up, scale=3, assigned_fixed_points=None,
+    existing_moving_pts=None, y_only=True, jacobian_thresh=0.0
+):
+    H_up, W_up = jacobian_up.shape
+    H_orig, W_orig = H_up // scale, W_up // scale
+
+    if assigned_fixed_points is None:
+        assigned_fixed_points = set()
+    if existing_moving_pts is not None:
+        existing_moving_coords = set(map(tuple, existing_moving_pts[:, 1:].astype(int)))
+    else:
+        existing_moving_coords = set()
+
+    new_pairs = []
+
+    for y_up in range(1, H_up - 1):
+        for x_up in range(1, W_up - 1):
+            if jacobian_up[y_up, x_up] <= jacobian_thresh:
+                continue
+
+            neighbors = [(y_up + dy, x_up + dx) for dy in [-1, 0, 1] for dx in [-1, 0, 1]
+                         if 0 <= y_up + dy < H_up and 0 <= x_up + dx < W_up and (dy != 0 or dx != 0)]
+
+            for ny, nx in neighbors:
+                y_orig = ny / scale
+                x_orig = nx / scale
+                y_int = int(np.round(y_orig))
+                x_int = int(np.round(x_orig))
+
+                if not (0 <= y_int < H_orig and 0 <= x_int < W_orig):
+                    continue
+
+                moving_coord = (y_int, x_int)
+                if moving_coord in existing_moving_coords:
+                    continue
+
+                disp_y = dvf_up[1, 0, ny, nx]
+                disp_x = dvf_up[2, 0, ny, nx]
+                if y_only:
+                    disp_x = 0
+
+                fixed_y = int(np.round(y_orig + disp_y / scale))
+                fixed_x = int(np.round(x_orig + disp_x / scale))
+                fixed_coord = (fixed_y, fixed_x)
+
+                if not (0 <= fixed_y < H_orig and 0 <= fixed_x < W_orig):
+                    continue
+
+                if fixed_coord in assigned_fixed_points:
+                    continue
+
+                new_pairs.append((moving_coord, fixed_coord))
+                assigned_fixed_points.add(fixed_coord)
+                existing_moving_coords.add(moving_coord)
+
+    return new_pairs
+

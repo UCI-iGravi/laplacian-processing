@@ -11,10 +11,9 @@ Work is notebook-driven; `modules/` and `cluster_modules/` are the library layer
 ## Notebook authority
 
 When making changes, default to these "current" notebooks unless the user says otherwise:
-- **Most robust / paper-ready:** `clustering v2 fixed Laplacian for paper images.ipynb`
+- **Most robust / paper-ready:** `clustering v3 fixed Laplacian for paper images.ipynb`
 - **Clustering (fixed/moving variants):** `clustering v2 fixed Laplacian.ipynb`, `clustering v2 moving Laplacian.ipynb`
-- **Outlier-removal pipeline:** `remove_orientation_and_magnitude 3d full.ipynb`
-- **Exploratory analysis:** `case_studies.ipynb`, `jacobian_analysis 2d.ipynb`
+- **Earlier clustering scaffold:** `clustering.ipynb`
 
 Older versions have been moved to `archive/`.
 
@@ -29,8 +28,7 @@ Older versions have been moved to `archive/`.
 
 ## Known cleanup debt
 
-- `modules/laplacian - moving copy.py` and `modules/laplacian_fixed copy.py` are unreferenced duplicates — safe to delete if asked.
-- The broken `import cluster` in `clustering.ipynb` was fixed to `from cluster_modules import cluster`; watch for similar stale imports when working in older notebooks pulled from `archive/`.
+- Watch for stale `import cluster` (should be `from cluster_modules import cluster`) when pulling older notebooks from `archive/`.
 
 ## When asked to run things
 

@@ -33,16 +33,10 @@ archive/              Deprecated predecessors to current notebooks
 
 | Notebook | Purpose |
 |---|---|
-| `clustering v2 fixed Laplacian for paper images.ipynb` | **Most comprehensive.** Fixed-space + moving-space Laplacian, augmentation, grid interpolation, ANTs/elastix comparison, paper figures. |
+| `clustering v3 fixed Laplacian for paper images.ipynb` | **Most comprehensive.** Fixed-space + moving-space Laplacian, augmentation, grid interpolation, ANTs/elastix comparison, paper figures. |
 | `clustering v2 fixed Laplacian.ipynb` | Fixed-space Laplacian + Laplacian upscaling. |
 | `clustering v2 moving Laplacian.ipynb` | Moving-space variant. |
 | `clustering.ipynb` | Earlier clustering scaffold (double-helix synthetic correspondences). |
-| `case_studies.ipynb` | Tests the three causes of negative Jdet: intersection, orientation, magnitude. |
-| `jacobian_analysis 2d.ipynb` | Quantifies what fraction of negative Jdets come from correspondence points vs. interpolated regions. |
-| `processing_points.ipynb` | Setup / preprocessing for correspondence point sets. |
-| `remove_orientation_and_magnitude 2d.ipynb` | 2D pipeline: remove intersection → orientation → magnitude outliers. |
-| `remove_orientation_and_magnitude 3d.ipynb` | 3D version of the above. |
-| `remove_orientation_and_magnitude 3d full.ipynb` | Full-volume 3D pipeline. |
 
 ## Setup
 

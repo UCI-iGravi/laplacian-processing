@@ -82,4 +82,116 @@ def surrounding_points(coord: tuple, deformation: np.ndarray, jacobian_det: np.n
     print("\tDown Jacobian determinant at", curr_coord_down, ":\t\t\t", down_det)
     #print("\tPrevious section Jacobian determinant at", curr_coord_prev, ":\t", prev_det)
     #print("\tNext section Jacobian determinant at", curr_coord_next, ":\t\t", next_det)
-    
+
+
+def jacobian_determinant_central(dvf, pt=None):
+    """
+    Compute the Jacobian determinant of a 2D deformation vector field using central differences.
+    dvf: numpy array of shape (3, 1, H, W), where dvf[1, 0, ...] is dy, dvf[2, 0, ...] is dx
+    Returns: jdet (H, W) array
+    """
+    # Extract displacement fields
+    dy = dvf[1, 0]  # shape (H, W)
+    dx = dvf[2, 0]  # shape (H, W)
+
+    # Compute gradients using central differences
+    # For interior points: (f[i+1] - f[i-1]) / 2
+    # For borders: use forward/backward difference
+
+    # ∂dx/∂x
+    dx_x = np.zeros_like(dx)
+    dx_x[:, 1:-1] = (dx[:, 2:] - dx[:, :-2]) / 2
+    dx_x[:, 0] = dx[:, 1] - dx[:, 0]
+    dx_x[:, -1] = dx[:, -1] - dx[:, -2]
+
+    # ∂dx/∂y
+    dx_y = np.zeros_like(dx)
+    dx_y[1:-1, :] = (dx[2:, :] - dx[:-2, :]) / 2
+    dx_y[0, :] = dx[1, :] - dx[0, :]
+    dx_y[-1, :] = dx[-1, :] - dx[-2, :]
+
+    # ∂dy/∂x
+    dy_x = np.zeros_like(dy)
+    dy_x[:, 1:-1] = (dy[:, 2:] - dy[:, :-2]) / 2
+    dy_x[:, 0] = dy[:, 1] - dy[:, 0]
+    dy_x[:, -1] = dy[:, -1] - dy[:, -2]
+
+    # ∂dy/∂y
+    dy_y = np.zeros_like(dy)
+    dy_y[1:-1, :] = (dy[2:, :] - dy[:-2, :]) / 2
+    dy_y[0, :] = dy[1, :] - dy[0, :]
+    dy_y[-1, :] = dy[-1, :] - dy[-2, :]
+
+    # Show each step
+    if pt is not None:
+        print("dx_x (∂dx/∂x):\n", dx_x[pt[0], pt[1]])
+        print("dx_y (∂dx/∂y):\n", dx_y[pt[0], pt[1]])
+        print("dy_x (∂dy/∂x):\n", dy_x[pt[0], pt[1]])
+        print("dy_y (∂dy/∂y):\n", dy_y[pt[0], pt[1]])
+
+    # Jacobian determinant formula for 2D deformation:
+    # J = | 1 + dy_y   dy_x |
+    #     | dx_y     1 + dx_x |
+    # det(J) = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+    jdet = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+
+    print("Jacobian determinant:\n", jdet[pt[0], pt[1]])
+    return jdet
+
+
+def jacobian_determinant_finite(dvf, pt=None):
+    """
+    Compute the Jacobian determinant of a 2D deformation vector field using forward finite differences.
+    dvf: numpy array of shape (3, 1, H, W), where dvf[1, 0, ...] is dy, dvf[2, 0, ...] is dx
+    Returns: jdet (H, W) array
+    """
+    dy = dvf[1, 0]  # (H, W)
+    dx = dvf[2, 0]  # (H, W)
+    H, W = dx.shape
+
+    # ∂dx/∂x (forward difference)
+    dx_x = np.zeros_like(dx)
+    dx_x[:, :-1] = dx[:, 1:] - dx[:, :-1]
+    dx_x[:, -1] = dx[:, -1] - dx[:, -2]
+
+    # ∂dx/∂y (forward difference)
+    dx_y = np.zeros_like(dx)
+    dx_y[:-1, :] = dx[1:, :] - dx[:-1, :]
+    dx_y[-1, :] = dx[-1, :] - dx[-2, :]
+
+    # ∂dy/∂x (forward difference)
+    dy_x = np.zeros_like(dy)
+    dy_x[:, :-1] = dy[:, 1:] - dy[:, :-1]
+    dy_x[:, -1] = dy[:, -1] - dy[:, -2]
+
+    # ∂dy/∂y (forward difference)
+    dy_y = np.zeros_like(dy)
+    dy_y[:-1, :] = dy[1:, :] - dy[:-1, :]
+    dy_y[-1, :] = dy[-1, :] - dy[-2, :]
+
+    # Show each step
+    if pt is not None:
+        print("dx_x (∂dx/∂x):\n", dx_x[pt[0], pt[1]])
+        print("dx_y (∂dx/∂y):\n", dx_y[pt[0], pt[1]])
+        print("dy_x (∂dy/∂x):\n", dy_x[pt[0], pt[1]])
+        print("dy_y (∂dy/∂y):\n", dy_y[pt[0], pt[1]])
+
+    # Jacobian determinant formula for 2D deformation:
+    # J = | 1 + dy_y   dy_x |
+    #     | dx_y     1 + dx_x |
+    # det(J) = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+    jdet = (1 + dx_x) * (1 + dy_y) - dx_y * dy_x
+
+    if pt is not None:
+        print("Jacobian determinant:\n", jdet[pt[0], pt[1]])
+    return jdet
+
+
+def compute_jacobian_det(dvf):
+    dy = dvf[1, 0]
+    dx = dvf[2, 0]
+    dx_x = np.gradient(dx, axis=1)
+    dx_y = np.gradient(dx, axis=0)
+    dy_x = np.gradient(dy, axis=1)
+    dy_y = np.gradient(dy, axis=0)
+    return (1 + dx_x) * (1 + dy_y) - dx_y * dy_x

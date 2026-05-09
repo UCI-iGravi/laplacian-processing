@@ -1,72 +1,53 @@
-# Code for UCI ALLEN Brain Repository
+# Laplacian Processing
 
+Research code for correcting negative Jacobian determinants in deformable image registration by leveraging correspondences between Laplacian operations in **moving** and **fixed** space.
 
-## Registration and Cell Counting
+## Motivation
 
-* Registration currently requires Elastix to be placed in the folder in which the script will be run. Elastix binaries can be downloaded at https://github.com/SuperElastix/elastix/releases/tag/5.1.0
+Laplacian-based registration interpolates a smooth displacement field from a sparse set of point correspondences. Numerical error in the solve can produce regions with negative Jacobian determinants (folds), which are non-physical. This repo explores correcting those folds by:
 
-* This script can generate nii files and perform registration as well as use existing nii files for registration. 
-    
-* If --img_dir is provided, the script creates nii files according to the channel specified and uses them for registration.
+1. Identifying the correspondences that cause negative Jdets (by intersection, orientation, or magnitude).
+2. Comparing Laplacian solutions computed in moving space vs. fixed space, and using their correspondence to filter / augment the displacement field.
+3. Clustering correspondences and applying the Laplacian per-cluster to avoid conflicting displacements.
 
-* If --img_dir is not provided, then script takes additional arguments --fixed_image, --moving_image. 
-
-* In addition output_dir can be specified to store all intermediary and final results. 
-
-* For performing cell detection and cell counting, additional arguments '--cell_detection' need to be given. For cell detection, '--img_dir' is a required argument. 
-    A threshold can be adjusted for cell counting with the argument '--threshold'
-
-* --input_mat is only present for legacy reasons and can be ignored. 
-
-* --t2d is to specify that the moving image is the template in registration. In registration generally, the template is fixed and the image data will be moving to align with the template.
-**Note**: Currently cell counting is only supported with --t2d option and the other way around will be soon supported. 
-
-
-* For help 
-```
-python run_registration_cellcounting.py -h
-```
-
-* Registration only command 
-```
- python .\run_registration_cellcounting.py --fixed_image 'CCF_DATA/average_template_25.nii.gz' --moving_image '../registration/B39/brain_25.nii.gz' --output_dir reg
-```
-
-* Registration and cell counting.
-```
-python .\run_registration_cellcounting.py --img_dir  IMGDIR --channel 0 --cell_detection --threshold 10
+## Repository layout
 
 ```
-
-## To Generate nii files from a stack of section images
-
-img_dir - Input directory containing section images
-
-out_dir - Output directory to store nii files
+modules/              Core Laplacian + Jacobian library
+  laplacian.py          moving-space Laplacian solver (createA, sliceToSlice3DLaplacian)
+  laplacian_fixed.py    fixed-space variant
+  data.py / data_fixed.py  Data class wrapping points + deformation + jdet field
+  jacobian.py           SimpleITK-based Jacobian determinant
+  correspondences.py    correspondence helpers
+cluster_modules/      Clustering + plotting utilities for correspondence sets
+  cluster.py            clustering methods (y_direction, quadrant, displacement_direction, helix_phase)
+  data_utils.py         image I/O, point-to-image rasterization
+  reg_utils.py          registration helpers (forward/inverse transforms)
+data/                 Correspondence CSVs (sparse/interpolated)
+registration/         Standalone 3D Laplacian registration script
+images/               Figures used in notebooks / paper
+archive/              Deprecated predecessors to current notebooks
 ```
-python tif_to_nii.py [img_dir] [out_dir] --channel 0
-```
 
-## To Convert the directory of tif sections into Zarr directory. 
+## Notebooks
 
-img_dir - Input directory containing tif file
+| Notebook | Purpose |
+|---|---|
+| `clustering v3 fixed Laplacian for paper images.ipynb` | **Most comprehensive.** Fixed-space + moving-space Laplacian, augmentation, grid interpolation, ANTs/elastix comparison, paper figures. |
+| `clustering v2 fixed Laplacian.ipynb` | Fixed-space Laplacian + Laplacian upscaling. |
+| `clustering v2 moving Laplacian.ipynb` | Moving-space variant. |
+| `clustering.ipynb` | Earlier clustering scaffold (double-helix synthetic correspondences). |
 
-out_dir - Output directory to store Zarr chunks
-
---channel - optional argument to select channel
+## Setup
 
 ```bash
-python tif_to_ome.py [img_dir] [out_dir] --channel 0 
+pip install -r requirements.txt
 ```
 
-## To visualize Zarr files on neuroglancer
+Notebooks assume the repo root is the working directory so that `from modules import ...` and `from cluster_modules import ...` resolve. No `__init__.py` is needed — these are Python 3 namespace packages.
 
-```bash
-git clone https://github.com/google/neuroglancer.git
+Runtime data (`.npy`, `.nii.gz` deformation fields, template volumes) are not committed. Paths in the notebooks reference `data/` and `CCF_DATA/`; supply your own or point to an existing copy.
 
-# From the directory containing Zarr files
+## Standalone registration
 
-python neuroglancer/cors_webserver.py
-```
-
-Load data from the live demo at [https://neuroglancer-demo.appspot.com](https://neuroglancer-demo.appspot.com).
+`registration/laplacian3DRegistration.py` is a standalone script for applying the moving-space Laplacian registration to 3D volumes. It requires Elastix binaries (https://github.com/SuperElastix/elastix/releases) placed alongside the script, plus the parameter files (`001_parameters_Rigid.txt`, `002_parameters_BSpline.txt`).

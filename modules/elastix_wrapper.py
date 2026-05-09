@@ -12,8 +12,10 @@ class ElastixWrapper:
         elastix_path: Path to elastix binary (e.g., 'C:/elastix/bin/elastix.exe')
         transformix_path: Path to transformix binary
         """
-        self.elastix_path = str(elastix_path)
-        self.transformix_path = str(transformix_path)
+        # Windows CreateProcess does not search relative paths with forward slashes;
+        # normalize via Path so subprocess.run can find the binary.
+        self.elastix_path = str(Path(elastix_path))
+        self.transformix_path = str(Path(transformix_path))
 
     @staticmethod
     def numpy_to_image(array, path):

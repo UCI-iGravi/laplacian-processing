@@ -191,15 +191,15 @@ def sliceToSlice3DLaplacian(fixedImage, mpoints, fpoints):
     #np.save("Yd.npy", Yd)
     #np.save("Zd.npy", Zd)
     #print("Computing dz")
-    dx = lgmres(A, Xd, tol = 1e-2)[0]
+    dx = lgmres(A, Xd, rtol=1e-2)[0]
     #print("dz calculated in {}s".format(time.time() - start))
-    
+
     #print("Computing dy")
-    dy = lgmres(A, Yd , tol = 1e-2)[0]
+    dy = lgmres(A, Yd, rtol=1e-2)[0]
     #print("dy calculated in {}s".format(time.time() - start))
 
     #print("Computing dx")
-    dz = lgmres(A, Zd, tol = 1e-2)[0]
+    dz = lgmres(A, Zd, rtol=1e-2)[0]
     #print("dx calculated in {}s".format(time.time() - start))
     
     #residual = A @ dx - Xd
@@ -261,15 +261,15 @@ def sliceToSlice3DLaplacian_mIndices(fixedImage, mpoints, fpoints):
     #np.save("Yd.npy", Yd)
     #np.save("Zd.npy", Zd)
     #print("Computing dz")
-    dx = lgmres(A, Xd, tol = 1e-2)[0]
+    dx = lgmres(A, Xd, rtol=1e-2)[0]
     #print("dz calculated in {}s".format(time.time() - start))
-    
+
     #print("Computing dy")
-    dy = lgmres(A, Yd , tol = 1e-2)[0]
+    dy = lgmres(A, Yd, rtol=1e-2)[0]
     #print("dy calculated in {}s".format(time.time() - start))
 
     #print("Computing dx")
-    dz = lgmres(A, Zd, tol = 1e-2)[0]
+    dz = lgmres(A, Zd, rtol=1e-2)[0]
     #print("dx calculated in {}s".format(time.time() - start))
 
     deformationField[0] = np.zeros(fdata.shape)
